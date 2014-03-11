@@ -3,7 +3,8 @@
  * 2014.3.10 by Aon
  * @return {[type]} [description]
  */
-;(function(Aon) {
+;
+(function(Aon) {
 	if (typeof exports !== 'undefined') {
 		if (typeof module !== 'undefined' && module.exports) {
 			exports = module.exports = Aon;
@@ -21,13 +22,13 @@
 		fproto = Function.prototype;
 
 	//原型方法
-	var push   = aproto.push,
-		slice  = aproto.slice,
-		concat = aproto.concat,
+	var push = aproto.push,
+		slice          = aproto.slice,
+		concat         = aproto.concat,
 		hasOwnProperty = oproto.hasOwnProperty;
 
 	//ECMAScript5 支持的本地方法
-	var	nativeForEach     = aproto.forEach,
+	var nativeForEach = aproto.forEach,
 		nativeMap         = aproto.map,
 		nativeReduce      = aproto.reduce,
 		nativeReduceRight = aproto.reduceRight,
@@ -41,17 +42,17 @@
 	//平台检测
 	var ua = navigator.userAgent,
 		uv = navigator.appVersion,
-		isAndroid = (/android/gi).test(uv),
+		isAndroid  = (/android/gi).test(uv),
 		isTouchPad = (/hp-tablet/gi).test(uv),
-		isIphone = (/iphone|ipod/gi).test(ua),
-		isIpad = (/ipad/gi).test(ua),
-		isIOS = isIphone || isIpad,
-		has3d = 'WebKitCSSMatrix' in window && 'm11' in new WebKitCSSMatrix(),
-		hasTouch = 'ontouchstart' in window && !isTouchPad,
-		START_EV  = hasTouch ? 'touchstart' : 'mousedown',
-		MOVE_EV   = hasTouch ? 'touchmove' : 'mousemove',
-		END_EV    = hasTouch ? 'touchend' : 'mouseup',
-		CANCEL_EV = hasTouch ? 'touchcancel' : 'mouseup';
+		isIphone   = (/iphone|ipod/gi).test(ua),
+		isIpad     = (/ipad/gi).test(ua),
+		isIOS      = isIphone || isIpad,
+		has3d      = 'WebKitCSSMatrix' in window && 'm11' in new WebKitCSSMatrix(),
+		hasTouch   = 'ontouchstart' in window && !isTouchPad,
+		START_EV   = hasTouch ? 'touchstart' : 'mousedown',
+		MOVE_EV    = hasTouch ? 'touchmove' : 'mousemove',
+		END_EV     = hasTouch ? 'touchend' : 'mouseup',
+		CANCEL_EV  = hasTouch ? 'touchcancel' : 'mouseup';
 
 	//过滤原型链的对象属性
 	var hasProperty = function(obj, key) {
@@ -79,6 +80,65 @@
 		}
 	};
 
+	var aaObserver = function() {
+
+		function bind(event, fn) {
+			var events = this.events = this.events || {},
+				parts = event.split(/\s+/),
+				i = 0,
+				num = parts.length,
+				part;
+			if (events[event] && events[event].length) return this;
+			each(parts, function(part, index) {
+				events[part] = events[part] || [];
+				events[part].push(fn);
+			})
+			return this;
+		}
+
+		function one(event, fn) {
+			this.bind(event, function fnc() {
+				fn.apply(this, slice.call(arguments));
+				this.unbind(event, fnc);
+			});
+			return this;
+		}
+
+		function unbind(event, fn) {
+			var events = this.events,
+				eventName, i, parts, num;
+			if (!events) return;
+			parts = event.split(/\s+/);
+			each(parts, function(eventName, index) {
+				if (eventName in events !== false) {
+					events[eventName].splice(events[eventName].indexOf(fn), 1);
+					if (!events[eventName].length) { //修正没有事件直接删除空数组
+						delete events[eventName];
+					}
+				}
+			})
+			return this;
+		}
+
+		function trigger(event) {
+			var events = this.events,
+				i, args, falg;
+			if (!events || event in events === false) return;
+			args = slice.call(arguments, 1);
+			for (i = events[event].length - 1; i >= 0; i--) {
+				falg = events[event][i].apply(this, args);
+			}
+			return falg; //修正带返回
+		}
+
+		return function() {
+			this.subscribe = bind;
+			this.remove    = unbind;
+			this.publish   = trigger;
+			this.one = one;
+			return this;
+		};
+	}();
 
 	//数据缓存生成器
 	function Data() {
@@ -99,7 +159,7 @@
 		},
 		remove: function() {
 
-		},
+		}
 	}
 
 	//数据缓存,用户存储事件句柄
@@ -107,23 +167,23 @@
 
 	//构造器
 	var Aon = function(element, options, context) {
-		return new Aon.init(element, options, context);
+		return new Aon.instance(element, options, context);
 	};
 
-	Aon.init = function(element, options, context) {
+	Aon.instance = function(element, options, context) {
 		this.element = element;
 		this.options = options;
+		Aon.event.add(element, MOVE_EV);
+		Aon.event.add(element, END_EV);
 		this._startEventHandler = Aon.event.add(element, START_EV, function(event) {
 			console.log(event)
 		});
-		Aon.event.add(element, MOVE_EV);
-		Aon.event.add(element, END_EV);
 		//事件句柄合集
 		this._eventHandler = [];
 	};
 
 	//共享原型
-	Aon.fn = Aon.prototype = Aon.init.prototype;
+	Aon.fn = Aon.prototype = Aon.instance.prototype;
 
 	//混入方法
 	Aon.mix = Aon.fn.mix = function(target) {
@@ -161,7 +221,7 @@
 
 		add: function(element, eventType, handler) {
 			//过滤委托关系
-			var filterDelegate = function(event) {
+			var delegateHandler = function(event) {
 				var overwriteEvent,
 					count_touches = 0,
 					type = event.type.toLowerCase();
@@ -180,12 +240,17 @@
 				//重写事件对象
 				overwriteEvent = new Aon.Event(element, eventType, count_touches, event);
 
-				handler && handler(overwriteEvent);
+				if (handler) {
+					handler(overwriteEvent)
+				} else {
+					Aon.event.dispatch(overwriteEvent);
+				}
 			};
-			Aon.bind(DOC, eventType, filterDelegate);
+
+			Aon.bind(DOC, eventType, delegateHandler);
 		},
 
-		handlers: function(element, eventType, handler) {
+		dispatch: function(element, eventType, handler) {
 
 		}
 
@@ -198,11 +263,11 @@
 	 * @return {[type]} [description]
 	 */
 	Aon.Event = function(element, eventType, touches, evt) {
-		this.timeStamp   = new Date().getTime();
-		this.target      = evt.target;
-		this.touches     = touches;
-		this.eventType   = eventType;
-		this.srcEvent    = evt;
+		this.timeStamp = new Date().getTime();
+		this.target = evt.target;
+		this.touches = touches;
+		this.eventType = eventType;
+		this.srcEvent = evt;
 	};
 
 	/**
@@ -245,9 +310,6 @@
 
 
 var gesture = aaGesture(document.getElementById("container"));
+
 console.log('静态', Object.keys(aaGesture))
 console.log('原型', Object.keys(aaGesture.fn))
-
-// hammertime.on('tap',function(){
-//     alert(1)
-// })
