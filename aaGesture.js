@@ -1,16 +1,16 @@
 /**
  * 手势库
- * 2014.3.10 by Aaron
+ * 2014.3.10 by Aon
  * @return {[type]} [description]
  */
-;(function(aaGesture) {
+;(function(Aon) {
 	if (typeof exports !== 'undefined') {
 		if (typeof module !== 'undefined' && module.exports) {
-			exports = module.exports = aaGesture;
+			exports = module.exports = Aon;
 		}
-		exports.aaGesture = aaGesture;
+		exports.aaGesture = Aon;
 	} else {
-		window.aaGesture = aaGesture;
+		window.aaGesture = Aon;
 	}
 })(function(window, undefined) {
 
@@ -38,6 +38,7 @@
 		nativeLastIndexOf = aproto.lastIndexOf,
 		nativeBind        = fproto.bind;
 
+	//平台检测
 	var ua = navigator.userAgent,
 		uv = navigator.appVersion,
 		isAndroid = (/android/gi).test(uv),
@@ -78,38 +79,54 @@
 		}
 	};
 
+
+	//数据缓存生成器
+	function Data() {
+		Object.defineProperty(this.cache = {}, 0, {
+			get: function() {
+				return {};
+			}
+		});
+		this.expando = 'Aon' + Math.random();
+	}
+
+	Data.prototype = {
+		set: function() {
+
+		},
+		get: function() {
+
+		},
+		remove: function() {
+
+		},
+	}
+
+	//数据缓存,用户存储事件句柄
+	var dataCache = new Data();
+
 	//构造器
-	var aaGesture = function(element, options, context) {
-		return new aaGesture.init(element, options, context);
+	var Aon = function(element, options, context) {
+		return new Aon.init(element, options, context);
 	};
 
-	//生成委托句柄
-	var delegateBindingHandlers = function(element, eventType, handler) {
-		//过滤委托关系
-		var filterDelegate = function(evt) {
-			handler(evt);
-		};
-
-		aaGesture.bind(DOC, eventType, filterDelegate);
-
-		return filterDelegate;
-	};
-
-	aaGesture.init = function(element, options, context) {
+	Aon.init = function(element, options, context) {
 		this.element = element;
 		this.options = options;
-		this._eventStartHandler = delegateBindingHandlers(element, START_EV, function(evt) {
-
-		})
+		this._startEventHandler = Aon.event.add(element, START_EV, function(event) {
+			console.log(event)
+		});
+		Aon.event.add(element, MOVE_EV);
+		Aon.event.add(element, END_EV);
 		//事件句柄合集
 		this._eventHandler = [];
 	};
 
 	//共享原型
-	aaGesture.fn = aaGesture.prototype = aaGesture.init.prototype;
+	Aon.fn = Aon.prototype = Aon.init.prototype;
 
 	//混入方法
-	aaGesture.mix = aaGesture.fn.mix = function(target) {
+	Aon.mix = Aon.fn.mix = function(target) {
 		var parent = target,
 			offset = 1;
 		//如果没有输入目标对象,取当前的this,修改偏移量
@@ -129,7 +146,7 @@
 	};
 
 	//扩充静态方法
-	aaGesture.mix({
+	Aon.mix({
 		'each': each,
 		'bind': function(element, type, handler) { // 绑定事件
 			element.addEventListener(type, handler, false);
@@ -139,29 +156,98 @@
 		}
 	})
 
-	//混入手势方法
-	aaGesture.fn.mix({
+	//事件辅助
+	Aon.event = {
+
+		add: function(element, eventType, handler) {
+			//过滤委托关系
+			var filterDelegate = function(event) {
+				var overwriteEvent,
+					count_touches = 0,
+					type = event.type.toLowerCase();
+
+				//计算一次有效点击
+				if (!event.which || !type.match(/mouse/)) {
+					return;
+				}
+
+				if (type.match(/touch/)) {
+					count_touches = event.touches.length;
+				} else {
+					count_touches = 1;
+				}
+
+				//重写事件对象
+				overwriteEvent = new Aon.Event(element, eventType, count_touches, event);
+
+				handler && handler(overwriteEvent);
+			};
+			Aon.bind(DOC, eventType, filterDelegate);
+		},
+
+		handlers: function(element, eventType, handler) {
+
+		}
 
 
 
+	};
+
+	/**
+	 * 封装事件对象类
+	 * @return {[type]} [description]
+	 */
+	Aon.Event = function(element, eventType, touches, evt) {
+		this.timeStamp   = new Date().getTime();
+		this.target      = evt.target;
+		this.touches     = touches;
+		this.eventType   = eventType;
+		this.srcEvent    = evt;
+	};
+
+	/**
+	 * 封装事件方法
+	 * @type {Object}
+	 */
+	Aon.Event.prototype = {
+		// 取消特定事件的默认行为
+		preventDefault: function() {},
+		// 取消事件的进一步捕获或冒泡
+		stopPropagation: function() {},
+		// 阻止剩余的事件处理函数执行并且防止事件冒泡到DOM树上
+		stopImmediatePropagation: function() {}
+	}
 
 
+	Aon.injection = {
+		swipe: function() {
+
+		},
+		tap: function() {
+
+		}
+	}
 
 
+	//实例接口方法
+	Aon.fn.mix({
+		on: function() {
 
+		},
+		off: function() {
+
+		}
 	})
 
-
-
-
-	return aaGesture;
+	return Aon;
 
 }(this));
 
 
 var gesture = aaGesture(document.getElementById("container"));
+console.log('静态', Object.keys(aaGesture))
+console.log('原型', Object.keys(aaGesture.fn))
 
-console.log(gesture)
 // hammertime.on('tap',function(){
 //     alert(1)
 // })
