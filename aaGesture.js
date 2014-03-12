@@ -3,8 +3,7 @@
  * 2014.3.10 by Aon
  * @return {[type]} [description]
  */
-;
-(function(Aon) {
+new (function(Aon) {
 	if (typeof exports !== 'undefined') {
 		if (typeof module !== 'undefined' && module.exports) {
 			exports = module.exports = Aon;
@@ -16,8 +15,7 @@
 })(function(window, undefined) {
 
 	//原型引用
-	var DOC = window.document,
-		aproto = Array.prototype,
+	var aproto = Array.prototype,
 		oproto = Object.prototype,
 		fproto = Function.prototype;
 
@@ -171,12 +169,13 @@
 	};
 
 	Aon.instance = function(element, options, context) {
+		var self = this;
 		this.element = element;
 		this.options = options;
 		Aon.event.add(element, MOVE_EV);
 		Aon.event.add(element, END_EV);
 		this._startEventHandler = Aon.event.add(element, START_EV, function(event) {
-			console.log(event)
+			self._startDetect(event);
 		});
 		//事件句柄合集
 		this._eventHandler = [];
@@ -184,6 +183,8 @@
 
 	//共享原型
 	Aon.fn = Aon.prototype = Aon.instance.prototype;
+
+	Aon.each = each;
 
 	//混入方法
 	Aon.mix = Aon.fn.mix = function(target) {
@@ -204,17 +205,6 @@
 		});
 		return parent;
 	};
-
-	//扩充静态方法
-	Aon.mix({
-		'each': each,
-		'bind': function(element, type, handler) { // 绑定事件
-			element.addEventListener(type, handler, false);
-		},
-		'unbind': function(element, type, handler) { //卸载事件
-			element.removeEventListener(type, handler, false);
-		}
-	})
 
 	//事件辅助
 	Aon.event = {
@@ -247,7 +237,9 @@
 				}
 			};
 
-			Aon.bind(DOC, eventType, delegateHandler);
+			document.addEventListener(eventType,delegateHandler);
+
+			return delegateHandler;
 		},
 
 		dispatch: function(element, eventType, handler) {
@@ -283,6 +275,12 @@
 		stopImmediatePropagation: function() {}
 	}
 
+	Aon.fn.mix({
+		_startDetect: function(event) {
+			console.log(event, 1)
+		}
+	})
+
 
 	Aon.injection = {
 		swipe: function() {
@@ -292,7 +290,6 @@
 
 		}
 	}
-
 
 	//实例接口方法
 	Aon.fn.mix({
