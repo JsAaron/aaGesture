@@ -52,13 +52,37 @@ new (function(Aon) {
 		END_EV     = hasTouch ? 'touchend' : 'mouseup',
 		CANCEL_EV  = hasTouch ? 'touchcancel' : 'mouseup';
 
+	//构造器
+	var Aon = function(element, options, context) {
+		return new Aon.instance(element, options, context);
+	};
+
+	Aon.instance = function(element, options, context) {
+		var self = this;
+		this.element = element;
+		this.options = options;
+		this.eventHandler = {
+			startHandler: Aon.event.add(element, START_EV, function(e) {
+				self._startHandler(e);
+			}),
+			moveHandler: Aon.event.add(element, MOVE_EV, function(e) {
+				self._moveHandler(e);
+			}),
+			endHandler: Aon.event.add(element, END_EV, function(e) {
+				self._endHandler(e);
+			})
+		}
+		//事件句柄合集
+		this.eventName = [];
+	};
+
 	//过滤原型链的对象属性
 	var hasProperty = function(obj, key) {
 		return hasOwnProperty.call(obj, key);
 	};
 
 	//遍历
-	var each = function(obj, callback, context) {
+	var each = Aon.each = function(obj, callback, context) {
 		if (obj == null) return;
 		//如果支持本地forEach方法,并且是函数
 		if (nativeForEach && obj.forEach === nativeForEach) {
@@ -79,35 +103,25 @@ new (function(Aon) {
 	};
 
 	var aaObserver = function() {
-
-		function bind(event, fn) {
+		this.subscribe = function bind(event, fn) {
 			var events = this.events = this.events || {},
 				parts = event.split(/\s+/),
 				i = 0,
 				num = parts.length,
 				part;
 			if (events[event] && events[event].length) return this;
-			each(parts, function(part, index) {
+			forEach(parts, function(part, index) {
 				events[part] = events[part] || [];
 				events[part].push(fn);
 			})
 			return this;
-		}
-
-		function one(event, fn) {
-			this.bind(event, function fnc() {
-				fn.apply(this, slice.call(arguments));
-				this.unbind(event, fnc);
-			});
-			return this;
-		}
-
-		function unbind(event, fn) {
+		};
+		this.remove = function unbind(event, fn) {
 			var events = this.events,
 				eventName, i, parts, num;
 			if (!events) return;
 			parts = event.split(/\s+/);
-			each(parts, function(eventName, index) {
+			forEach(parts, function(eventName, index) {
 				if (eventName in events !== false) {
 					events[eventName].splice(events[eventName].indexOf(fn), 1);
 					if (!events[eventName].length) { //修正没有事件直接删除空数组
@@ -116,9 +130,8 @@ new (function(Aon) {
 				}
 			})
 			return this;
-		}
-
-		function trigger(event) {
+		},
+		this.publish = function trigger(event) {
 			var events = this.events,
 				i, args, falg;
 			if (!events || event in events === false) return;
@@ -128,15 +141,8 @@ new (function(Aon) {
 			}
 			return falg; //修正带返回
 		}
-
-		return function() {
-			this.subscribe = bind;
-			this.remove    = unbind;
-			this.publish   = trigger;
-			this.one = one;
-			return this;
-		};
-	}();
+		return this;
+	};
 
 	//数据缓存生成器
 	function Data() {
@@ -163,24 +169,6 @@ new (function(Aon) {
 	//数据缓存,用户存储事件句柄
 	var dataCache = new Data();
 
-	//构造器
-	var Aon = function(element, options, context) {
-		return new Aon.instance(element, options, context);
-	};
-
-	Aon.instance = function(element, options, context) {
-		var self = this;
-		this.element = element;
-		this.options = options;
-		Aon.event.add(element, MOVE_EV);
-		Aon.event.add(element, END_EV);
-		this._startEventHandler = Aon.event.add(element, START_EV, function(event) {
-			self._startDetect(event);
-		});
-		//事件句柄合集
-		this._eventHandler = [];
-	};
-
 	//共享原型
 	Aon.fn = Aon.prototype = Aon.instance.prototype;
 
@@ -204,50 +192,6 @@ new (function(Aon) {
 			}
 		});
 		return parent;
-	};
-
-	//事件辅助
-	Aon.event = {
-
-		add: function(element, eventType, handler) {
-			//过滤委托关系
-			var delegateHandler = function(event) {
-				var overwriteEvent,
-					count_touches = 0,
-					type = event.type.toLowerCase();
-
-				//计算一次有效点击
-				if (!event.which || !type.match(/mouse/)) {
-					return;
-				}
-
-				if (type.match(/touch/)) {
-					count_touches = event.touches.length;
-				} else {
-					count_touches = 1;
-				}
-
-				//重写事件对象
-				overwriteEvent = new Aon.Event(element, eventType, count_touches, event);
-
-				if (handler) {
-					handler(overwriteEvent)
-				} else {
-					Aon.event.dispatch(overwriteEvent);
-				}
-			};
-
-			document.addEventListener(eventType,delegateHandler);
-
-			return delegateHandler;
-		},
-
-		dispatch: function(element, eventType, handler) {
-
-		}
-
-
-
 	};
 
 	/**
@@ -275,21 +219,72 @@ new (function(Aon) {
 		stopImmediatePropagation: function() {}
 	}
 
-	Aon.fn.mix({
-		_startDetect: function(event) {
-			console.log(event, 1)
+	//事件辅助
+	Aon.event = {
+
+		add: function(element, eventType, handler) {
+			//过滤委托关系
+			var delegateHandler = function(event) {
+				var overwriteEvent,
+					count_touches = 0,
+					type = event.type.toLowerCase();
+
+				//计算一次有效点击
+				if (!event.which || !type.match(/mouse/)) {
+					return;
+				}
+
+				if (type.match(/touch/)) {
+					count_touches = event.touches.length;
+				} else {
+					count_touches = 1;
+				}
+				handler(new Aon.Event(element, eventType, count_touches, event))
+			};
+
+			document.addEventListener(eventType,delegateHandler);
+
+			return delegateHandler;
+		},
+
+		//混入计算事件对象属性
+		mixEventData: function(element, eventType, handler) {
+
 		}
+
+	};
+
+
+	Aon.fn.mix({
+		_startHandler: function(event) {
+			this.start = {
+				startEvent : Aon.mix({}, event),
+				lastEvent  : false,
+			}
+		},
+		_moveHandler:function(event){
+			console.log(event)
+		},
+		_endHandler:function(event){
+			console.log(this)
+		},
 	})
 
+	/**
+	 * 滑动事件
+	 * @type {Object}
+	 */
+	Aon.fn.Tap = {
+		name: 'tap',
 
-	Aon.injection = {
-		swipe: function() {
+		options: {
 
 		},
-		tap: function() {
+		handler: function tapGesture() {
 
 		}
-	}
+	};
+
 
 	//实例接口方法
 	Aon.fn.mix({
